@@ -987,7 +987,7 @@ function Footer() {
             </div>
             <div className="footer-column">
               <h4>Поддержка</h4>
-              <a href="https://t.me/VorisxonS">FAQ</a>
+              <a href="https://t.me/VorisxonS">Телеграм</a>
               <a href="https://t.me/VorisxonS">Связаться</a>
               <a href="https://t.me/VorisxonS">Обратная связь</a>
               <a href="phone">+998 90 550 78 07</a>
@@ -1001,14 +1001,14 @@ function Footer() {
           </div>
         </div>
         
-        <div className="footer-bottom">
+        {/* <div className="footer-bottom">
           <p>© 2026 QIBLA. Все права защищены.</p>
           <div className="footer-social">
-            <a href="https://t.me/VorisxonS">Telegram</a>
-            <a href="https://www.instagram.com/vorisxon_s/" aria-label="Instagram">Instagram</a>
+            <a href="https://t.me/VorisxonS">Tg</a>
+            <a href="https://www.instagram.com/vorisxon_s/" aria-label="Instagram">in</a>
             <a href="vorisxon.me@gmail.com" aria-label="Email">vorisxon.me@gmail.com</a>
           </div>
-        </div>
+        </div> */}
       </div>
     </footer>
   );
