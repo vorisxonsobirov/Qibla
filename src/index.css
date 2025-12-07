@@ -1823,3 +1823,270 @@ h1, h2, h3, h4, h5, h6 {
 .colorYell{
     color: #10B981;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Добавьте в index.css */
+
+.location-notice {
+  background: rgba(201, 162, 39, 0.1);
+  border: 1px solid rgba(201, 162, 39, 0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: #C9A227;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.default-badge {
+  font-size: 10px;
+  background: rgba(201, 162, 39, 0.2);
+  color: #C9A227;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+
+.coordinates-info {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-size: 13px;
+  color: #6c757d;
+}
+
+.coordinates-info p {
+  margin: 4px 0;
+}
+
+.current-time-display {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.current-time-label {
+  display: block;
+  font-size: 11px;
+  color: #C9A227;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.current-time-value {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: white;
+  font-family: 'Courier New', monospace;
+}
+
+.next-prayer-banner {
+  background: linear-gradient(135deg, #C9A227 0%, #10B981 100%);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.next-prayer-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.next-prayer-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.8);
+}
+
+.next-prayer-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
+}
+
+.next-prayer-time-info {
+  text-align: right;
+}
+
+.next-prayer-time {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: white;
+}
+
+.next-prayer-remaining {
+  display: block;
+  font-size: 11px;
+  color: rgba(255,255,255,0.9);
+}
+
+.prayer-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: #f8f9fa;
+  transition: all 0.3s ease;
+}
+
+.prayer-item.active {
+  background: linear-gradient(135deg, #C9A227 0%, #10B981 100%);
+  color: white;
+  transform: scale(1.02);
+  box-shadow: 0 4px 15px rgba(201, 162, 39, 0.3);
+}
+
+.prayer-item.passed {
+  opacity: 0.5;
+  background: #e9ecef;
+}
+
+.prayer-item-icon {
+  font-size: 18px;
+  margin-right: 10px;
+}
+
+.prayer-item-name {
+  flex: 1;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.prayer-item-time {
+  font-weight: 700;
+  font-size: 15px;
+  font-family: 'Courier New', monospace;
+}
+
+.prayer-next {
+  margin-left: 8px;
+  font-size: 12px;
+  animation: pulse 1s infinite;
+}
+
+.prayer-passed {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #10B981;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.live-prayer-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.live-time-card {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  border: 1px solid #e9ecef;
+}
+
+.live-time-card.highlight {
+  background: linear-gradient(135deg, #C9A227 0%, #10B981 100%);
+  border: none;
+}
+
+.live-time-card.highlight .live-label,
+.live-time-card.highlight .live-value {
+  color: white;
+}
+
+.live-label {
+  display: block;
+  font-size: 12px;
+  color: #6c757d;
+  margin-bottom: 4px;
+}
+
+.live-value {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a2e;
+  font-family: 'Courier New', monospace;
+}
+
+.prayer-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #6c757d;
+}
+
+.loading-spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #e9ecef;
+  border-top-color: #C9A227;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+}
+
+.loading-text {
+  color: rgba(255,255,255,0.7);
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.live-time {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+}

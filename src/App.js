@@ -1,6 +1,4 @@
-
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './index.css';
 
 // Иконки компоненты
@@ -95,16 +93,159 @@ const Icons = {
   )
 };
 
-// Хук для получения времени намаза
+// ==========================================
+// КОНФИГУРАЦИЯ ПО УМОЛЧАНИЮ (Наманган)
+// ==========================================
+const DEFAULT_LOCATION = {
+  latitude: 40.9983,
+  longitude: 71.6726,
+  city: 'Наманган',
+  country: 'Узбекистан',
+  timezone: 5 // UTC+5
+};
+
+// ==========================================
+// ФУНКЦИИ ДЛЯ РАСЧЁТА ВРЕМЕНИ
+// ==========================================
+
+// Получение смещения часового пояса по координатам (приблизительно)
+function getTimezoneOffset(longitude) {
+  // Приблизительный расчёт часового пояса по долготе
+  // Каждые 15 градусов = 1 час
+  return Math.round(longitude / 15);
+}
+
+// Функция для расчёта времени намаза
+function calculatePrayerTimes(date, latitude, longitude, timezoneOffset) {
+  const DEG_TO_RAD = Math.PI / 180;
+  const RAD_TO_DEG = 180 / Math.PI;
+  
+  // Параметры расчёта (метод Muslim World League)
+  const fajrAngle = 18;
+  const ishaAngle = 17;
+  const asrFactor = 1; // Стандартный (Шафии)
+  
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  
+  // Юлианская дата
+  const A = Math.floor((14 - month) / 12);
+  const Y = year + 4800 - A;
+  const M = month + 12 * A - 3;
+  const JD = day + Math.floor((153 * M + 2) / 5) + 365 * Y + Math.floor(Y / 4) - Math.floor(Y / 100) + Math.floor(Y / 400) - 32045;
+  
+  const D = JD - 2451545.0;
+  const g = (357.529 + 0.98560028 * D) % 360;
+  const q = (280.459 + 0.98564736 * D) % 360;
+  const L = (q + 1.915 * Math.sin(g * DEG_TO_RAD) + 0.020 * Math.sin(2 * g * DEG_TO_RAD)) % 360;
+  const e = 23.439 - 0.00000036 * D;
+  const RA = Math.atan2(Math.cos(e * DEG_TO_RAD) * Math.sin(L * DEG_TO_RAD), Math.cos(L * DEG_TO_RAD)) * RAD_TO_DEG;
+  const Dec = Math.asin(Math.sin(e * DEG_TO_RAD) * Math.sin(L * DEG_TO_RAD)) * RAD_TO_DEG;
+  
+  const EqT = (q - RA) / 15;
+  const Dhuhr = 12 + timezoneOffset - longitude / 15 - EqT;
+  
+  const computeTime = (angle) => {
+    const cosHA = (Math.sin(-angle * DEG_TO_RAD) - Math.sin(latitude * DEG_TO_RAD) * Math.sin(Dec * DEG_TO_RAD)) /
+                  (Math.cos(latitude * DEG_TO_RAD) * Math.cos(Dec * DEG_TO_RAD));
+    if (cosHA < -1 || cosHA > 1) return NaN;
+    return Math.acos(cosHA) * RAD_TO_DEG / 15;
+  };
+  
+  const sunriseOffset = computeTime(0.833);
+  const fajrOffset = computeTime(fajrAngle);
+  const ishaOffset = computeTime(ishaAngle);
+  
+  const asrDec = Math.atan(1 / (asrFactor + Math.tan(Math.abs(latitude - Dec) * DEG_TO_RAD))) * RAD_TO_DEG;
+  const asrOffset = computeTime(-asrDec);
+  
+  const formatTime = (hours) => {
+    if (isNaN(hours)) return '--:--';
+    let h = Math.floor(hours);
+    let m = Math.round((hours - h) * 60);
+    if (m === 60) { h++; m = 0; }
+    if (h >= 24) h -= 24;
+    if (h < 0) h += 24;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  };
+  
+  return {
+    Fajr: formatTime(Dhuhr - fajrOffset),
+    Sunrise: formatTime(Dhuhr - sunriseOffset),
+    Dhuhr: formatTime(Dhuhr),
+    Asr: formatTime(Dhuhr + asrOffset),
+    Maghrib: formatTime(Dhuhr + sunriseOffset),
+    Isha: formatTime(Dhuhr + ishaOffset)
+  };
+}
+
+// Функция для получения хиджри даты
+function getHijriDate(gregorianDate) {
+  const day = gregorianDate.getDate();
+  const month = gregorianDate.getMonth();
+  const year = gregorianDate.getFullYear();
+  
+  const jd = Math.floor((11 * year + 3) / 30) + 354 * year + 30 * month - Math.floor((month - 1) / 2) + day - 385;
+  const l = jd - 1948440 + 10632;
+  const n = Math.floor((l - 1) / 10631);
+  const l2 = l - 10631 * n + 354;
+  const j = Math.floor((10985 - l2) / 5316) * Math.floor((50 * l2) / 17719) + Math.floor(l2 / 5670) * Math.floor((43 * l2) / 15238);
+  const l3 = l2 - Math.floor((30 - j) / 15) * Math.floor((17719 * j) / 50) - Math.floor(j / 16) * Math.floor((15238 * j) / 43) + 29;
+  const hijriMonth = Math.floor((24 * l3) / 709);
+  const hijriDay = l3 - Math.floor((709 * hijriMonth) / 24);
+  
+  const hijriMonths = [
+    'Мухаррам', 'Сафар', 'Раби аль-авваль', 'Раби ас-сани',
+    'Джумада аль-уля', 'Джумада ас-сания', 'Раджаб', 'Шаабан',
+    'Рамадан', 'Шавваль', 'Зуль-каада', 'Зуль-хиджа'
+  ];
+  
+  return `${hijriDay} ${hijriMonths[hijriMonth - 1] || 'Неизвестно'}`;
+}
+
+// Функция для получения названия города по координатам
+async function getCityName(latitude, longitude) {
+  try {
+    // Используем бесплатный API для reverse geocoding
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=ru`
+    );
+    const data = await response.json();
+    
+    const city = data.address?.city || 
+                 data.address?.town || 
+                 data.address?.village || 
+                 data.address?.state ||
+                 'Неизвестно';
+    const country = data.address?.country || '';
+    
+    return { city, country };
+  } catch (error) {
+    console.error('Ошибка получения названия города:', error);
+    return { city: 'Неизвестно', country: '' };
+  }
+}
+
+// ==========================================
+// ОСНОВНОЙ ХУК ДЛЯ ВРЕМЕНИ НАМАЗА С ГЕОЛОКАЦИЕЙ
+// ==========================================
 function usePrayerTimes() {
+  const [location, setLocation] = useState({
+    latitude: DEFAULT_LOCATION.latitude,
+    longitude: DEFAULT_LOCATION.longitude,
+    city: DEFAULT_LOCATION.city,
+    country: DEFAULT_LOCATION.country,
+    timezone: DEFAULT_LOCATION.timezone,
+    isDefault: true
+  });
   const [prayerTimes, setPrayerTimes] = useState(null);
-  const [location, setLocation] = useState({ city: 'Определение...', country: '' });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [nextPrayer, setNextPrayer] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState('');
   const [hijriDate, setHijriDate] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [locationStatus, setLocationStatus] = useState('detecting'); // 'detecting', 'success', 'denied', 'error'
 
   // Обновление текущего времени каждую секунду
   useEffect(() => {
@@ -114,59 +255,84 @@ function usePrayerTimes() {
     return () => clearInterval(timer);
   }, []);
 
-  // Получение геолокации и времени намаза
+  // Получение геолокации
   useEffect(() => {
-    const fetchPrayerTimes = async (latitude, longitude) => {
-      try {
-        const today = new Date();
-        const dateStr = `${today.getDate()}-${today.getMonth() + 1}-${today.getFullYear()}`;
-        
-        // Получаем время намаза
-        const response = await fetch(
-          `https://api.aladhan.com/v1/timings/${dateStr}?latitude=${latitude}&longitude=${longitude}&method=2`
-        );
-        const data = await response.json();
-        
-        if (data.code === 200) {
-          setPrayerTimes(data.data.timings);
-          setHijriDate(`${data.data.date.hijri.day} ${data.data.date.hijri.month.en}`);
-        }
-
-        // Получаем название города
-        const geoResponse = await fetch(
-          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=ru`
-        );
-        const geoData = await geoResponse.json();
-        setLocation({
-          city: geoData.city || geoData.locality || 'Неизвестно',
-          country: geoData.countryName || ''
-        });
-
+    const getLocation = async () => {
+      setLocationStatus('detecting');
+      
+      if (!navigator.geolocation) {
+        console.log('Геолокация не поддерживается');
+        setLocationStatus('error');
         setLoading(false);
-      } catch (err) {
-        setError('Ошибка загрузки данных');
-        setLoading(false);
+        return;
       }
-    };
 
-    if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          fetchPrayerTimes(position.coords.latitude, position.coords.longitude);
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          console.log('Геолокация получена:', latitude, longitude);
+          
+          // Получаем название города
+          const { city, country } = await getCityName(latitude, longitude);
+          
+          // Определяем часовой пояс
+          const timezone = getTimezoneOffset(longitude);
+          
+          setLocation({
+            latitude,
+            longitude,
+            city,
+            country,
+            timezone,
+            isDefault: false
+          });
+          
+          setLocationStatus('success');
+          setLoading(false);
         },
-        (err) => {
-          // Если геолокация не доступна, используем координаты по умолчанию (Наманган)
-          fetchPrayerTimes(40.9983, 71.6726);
-          setLocation({ city: 'Наманган', country: 'Узбекистан' });
+        (error) => {
+          console.log('Ошибка геолокации:', error.message);
+          
+          if (error.code === error.PERMISSION_DENIED) {
+            setLocationStatus('denied');
+          } else {
+            setLocationStatus('error');
+          }
+          
+          // Используем Наманган по умолчанию
+          setLocation({
+            ...DEFAULT_LOCATION,
+            isDefault: true
+          });
+          setLoading(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000 // 5 минут кэш
         }
       );
-    } else {
-      fetchPrayerTimes(40.9983, 71.6726);
-      setLocation({ city: 'Наманган', country: 'Узбекистан' });
-    }
+    };
+
+    getLocation();
   }, []);
 
-  // Расчет следующего намаза и оставшегося времени
+  // Расчёт времени намаза при изменении локации
+  useEffect(() => {
+    if (location.latitude && location.longitude) {
+      const now = new Date();
+      const times = calculatePrayerTimes(
+        now, 
+        location.latitude, 
+        location.longitude, 
+        location.timezone
+      );
+      setPrayerTimes(times);
+      setHijriDate(getHijriDate(now));
+    }
+  }, [location]);
+
+  // Расчёт следующего намаза и оставшегося времени
   useEffect(() => {
     if (!prayerTimes) return;
 
@@ -184,7 +350,10 @@ function usePrayerTimes() {
 
     let foundNext = false;
     for (const prayer of prayerOrder) {
-      const [hours, minutes] = prayerTimes[prayer.key].split(':').map(Number);
+      const timeStr = prayerTimes[prayer.key];
+      if (!timeStr || timeStr === '--:--') continue;
+      
+      const [hours, minutes] = timeStr.split(':').map(Number);
       const prayerMinutes = hours * 60 + minutes;
 
       if (prayerMinutes > currentMinutes) {
@@ -194,7 +363,7 @@ function usePrayerTimes() {
 
         setNextPrayer({
           name: prayer.name,
-          time: prayerTimes[prayer.key],
+          time: timeStr,
           key: prayer.key
         });
 
@@ -208,8 +377,7 @@ function usePrayerTimes() {
       }
     }
 
-    // Если все намазы прошли, следующий - Фаджр завтра
-    if (!foundNext) {
+    if (!foundNext && prayerTimes['Fajr']) {
       const [hours, minutes] = prayerTimes['Fajr'].split(':').map(Number);
       const fajrMinutes = hours * 60 + minutes;
       const diff = (24 * 60 - currentMinutes) + fajrMinutes;
@@ -229,7 +397,7 @@ function usePrayerTimes() {
     prayerTimes,
     location,
     loading,
-    error,
+    locationStatus,
     currentTime,
     nextPrayer,
     timeRemaining,
@@ -237,7 +405,10 @@ function usePrayerTimes() {
   };
 }
 
-// Навигация
+// ==========================================
+// КОМПОНЕНТЫ
+// ==========================================
+
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -274,12 +445,12 @@ function Navbar() {
   );
 }
 
-// Hero секция с реальным временем
 function Hero() {
   const { 
     prayerTimes, 
     location, 
     loading, 
+    locationStatus,
     currentTime, 
     nextPrayer, 
     timeRemaining,
@@ -289,8 +460,25 @@ function Hero() {
   const formatTime = (date) => {
     return date.toLocaleTimeString('ru-RU', { 
       hour: '2-digit', 
-      minute: '2-digit'
+      minute: '2-digit',
+      second: '2-digit'
     });
+  };
+
+  // Статус геолокации
+  const getLocationStatusText = () => {
+    switch (locationStatus) {
+      case 'detecting':
+        return '🔍 Определение...';
+      case 'success':
+        return `📍 ${location.city}`;
+      case 'denied':
+        return `📍 ${location.city} (по умолчанию)`;
+      case 'error':
+        return `📍 ${location.city} (по умолчанию)`;
+      default:
+        return `📍 ${location.city}`;
+    }
   };
 
   return (
@@ -304,7 +492,7 @@ function Hero() {
         <div className="hero-text">
           <div className="hero-badge">
             <Icons.Star />
-            <span>Новое приложение 2026</span>
+            <span>Новое приложение 2024</span>
           </div>
           
           <h1 className="hero-title">
@@ -366,12 +554,21 @@ function Hero() {
               </div>
               <div className="phone-app">
                 <div className="app-header">
-                  <span className="app-location">📍{location.city}</span>
+                  <span className="app-location">{getLocationStatusText()}</span>
                   <span className="app-date">{hijriDate || 'Загрузка...'}</span>
                 </div>
+                
+                {/* Индикатор статуса геолокации */}
+                {location.isDefault && (
+                  <div className="location-notice">
+                    ℹ️ Используется Наманган. Разрешите геолокацию для точного времени.
+                  </div>
+                )}
+                
                 {loading ? (
                   <div className="prayer-card loading-card">
-                    <span className="loading-text">Загрузка времени намаза...</span>
+                    <div className="loading-spinner"></div>
+                    <span className="loading-text">Определение местоположения...</span>
                   </div>
                 ) : nextPrayer ? (
                   <div className="prayer-card">
@@ -383,7 +580,7 @@ function Hero() {
                 ) : null}
                 <div className="quick-actions">
                   <div className="quick-btn">📖 Коран</div>
-                  <div className="quick-btn">🤲 <br></br> Дуа</div>
+                  <div className="quick-btn">🤲 Дуа</div>
                   <div className="quick-btn">📿 Тасбех</div>
                 </div>
               </div>
@@ -404,7 +601,6 @@ function Hero() {
   );
 }
 
-// Секция возможностей
 function Features() {
   const features = [
     {
@@ -472,7 +668,6 @@ function Features() {
   );
 }
 
-// Секция Коран
 function QuranSection() {
   return (
     <section id="quran" className="quran-section">
@@ -541,12 +736,12 @@ function QuranSection() {
   );
 }
 
-// Секция Время намаза с реальными данными
 function PrayerSection() {
   const { 
     prayerTimes, 
     location, 
     loading, 
+    locationStatus,
     currentTime,
     nextPrayer,
     timeRemaining 
@@ -569,6 +764,13 @@ function PrayerSection() {
     });
   };
 
+  const getLocationDisplay = () => {
+    if (location.country) {
+      return `${location.city}, ${location.country}`;
+    }
+    return location.city;
+  };
+
   return (
     <section id="prayer" className="prayer-section">
       <div className="container">
@@ -578,25 +780,24 @@ function PrayerSection() {
               <div className="prayer-screen">
                 <div className="prayer-header">
                   <Icons.Location />
-                  <span>{location.city}{location.country ? `, ${location.country}` : ''}</span>
+                  <span>{getLocationDisplay()}</span>
+                  {location.isDefault && <span className="default-badge">по умолчанию</span>}
                 </div>
                 
-                {/* Текущее время */}
                 <div className="current-time-display">
-                  <span className="current-time-label colorYell">Текущее время</span>
+                  <span className="current-time-label">Текущее время (UTC+{location.timezone})</span>
                   <span className="current-time-value">{formatCurrentTime()}</span>
                 </div>
 
-                {/* Следующий намаз */}
                 {nextPrayer && (
                   <div className="next-prayer-banner">
                     <div className="next-prayer-info">
-                      <span className="next-prayer-label colorblck">Следующий:</span>
-                      <span className="next-prayer-name colorblck">{nextPrayer.name}</span>
+                      <span className="next-prayer-label">Следующий:</span>
+                      <span className="next-prayer-name">{nextPrayer.name}</span>
                     </div>
                     <div className="next-prayer-time-info">
-                      <span className="next-prayer-time colorblck">{nextPrayer.time}</span>
-                      <span className="next-prayer-remaining colorblck">{timeRemaining}</span>
+                      <span className="next-prayer-time">{nextPrayer.time}</span>
+                      <span className="next-prayer-remaining">{timeRemaining}</span>
                     </div>
                   </div>
                 )}
@@ -605,16 +806,14 @@ function PrayerSection() {
                   {loading ? (
                     <div className="prayer-loading">
                       <div className="loading-spinner"></div>
-                      <span>Загрузка времени намаза...</span>
+                      <span>Определение местоположения...</span>
                     </div>
                   ) : (
                     prayerOrder.map((prayer, index) => {
                       const isNext = nextPrayer?.key === prayer.key;
                       const prayerTime = prayerTimes?.[prayer.key] || '--:--';
                       
-                      // Проверяем, прошел ли этот намаз
-                      const now = currentTime;
-                      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                      const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
                       const [hours, minutes] = prayerTime.split(':').map(Number);
                       const prayerMinutes = hours * 60 + minutes;
                       const isPassed = prayerMinutes < currentMinutes && !isNext;
@@ -643,21 +842,26 @@ function PrayerSection() {
             <h2 className="section-title">Никогда не пропустите молитву</h2>
             <p className="section-description">
               Точное время всех пяти молитв с учётом вашего местоположения. 
-              Настраиваемые уведомления помогут вам соблюдать расписание.
+              {location.isDefault && ' Разрешите доступ к геолокации для более точного времени.'}
             </p>
             
-            {/* Информация о текущем времени */}
             <div className="live-prayer-info">
-              <div className="live-time-card borderblck">
-                <span className="live-label  ">🕐 Сейчас</span>
-                <span className="live-value colorblck">{formatCurrentTime()}</span>
+              <div className="live-time-card">
+                <span className="live-label">🕐 Сейчас в {location.city}</span>
+                <span className="live-value">{formatCurrentTime()}</span>
               </div>
               {nextPrayer && (
                 <div className="live-time-card highlight">
-                  <span className="live-label colorYell">🕌 {nextPrayer.name}</span>
-                  <span className="live-value colorYell">{timeRemaining}</span>
+                  <span className="live-label">🕌 {nextPrayer.name}</span>
+                  <span className="live-value">{timeRemaining}</span>
                 </div>
               )}
+            </div>
+
+            {/* Информация о координатах */}
+            <div className="coordinates-info">
+              <p>📍 Координаты: {location.latitude.toFixed(4)}°, {location.longitude.toFixed(4)}°</p>
+              <p>🕐 Часовой пояс: UTC+{location.timezone}</p>
             </div>
             
             <div className="prayer-features">
@@ -679,7 +883,7 @@ function PrayerSection() {
                 <Icons.Prayer />
                 <div>
                   <h4>Методы расчёта</h4>
-                  <p>ISNA, MWL, Umm al-Qura и другие</p>
+                  <p>Muslim World League</p>
                 </div>
               </div>
             </div>
@@ -690,7 +894,6 @@ function PrayerSection() {
   );
 }
 
-// Секция Тасбех
 function TasbihSection() {
   const [count, setCount] = useState(0);
   const [goal, setGoal] = useState(33);
@@ -725,26 +928,16 @@ function TasbihSection() {
                   <stop offset="100%" stopColor="#10B981" />
                 </linearGradient>
               </defs>
-              <circle
-                className="progress-bg"
-                cx="100"
-                cy="100"
-                r="90"
-              />
+              <circle className="progress-bg" cx="100" cy="100" r="90" />
               <circle
                 className="progress-fill"
                 cx="100"
                 cy="100"
                 r="90"
-                style={{
-                  strokeDasharray: `${progress} 565`
-                }}
+                style={{ strokeDasharray: `${progress} 565` }}
               />
             </svg>
-            <button 
-              className="tasbih-button"
-              onClick={handleClick}
-            >
+            <button className="tasbih-button" onClick={handleClick}>
               <span className="tasbih-count">{count}</span>
               <span className="tasbih-goal">из {goal}</span>
             </button>
@@ -769,10 +962,7 @@ function TasbihSection() {
             >
               100
             </button>
-            <button 
-              className="goal-btn reset"
-              onClick={() => setCount(0)}
-            >
+            <button className="goal-btn reset" onClick={() => setCount(0)}>
               Сброс
             </button>
           </div>
@@ -797,7 +987,6 @@ function TasbihSection() {
   );
 }
 
-// Секция Ясин
 function YasinSection() {
   return (
     <section className="yasin-section">
@@ -847,7 +1036,6 @@ function YasinSection() {
   );
 }
 
-// Секция Дуа
 function DuaSection() {
   const categories = [
     { icon: "🌅", name: "Утренние дуа", count: 12 },
@@ -893,7 +1081,6 @@ function DuaSection() {
   );
 }
 
-// Секция загрузки
 function DownloadSection() {
   return (
     <section id="download" className="download-section">
@@ -960,7 +1147,6 @@ function DownloadSection() {
   );
 }
 
-// Footer
 function Footer() {
   return (
     <footer className="footer">
@@ -989,9 +1175,6 @@ function Footer() {
               <h4>Поддержка</h4>
               <a href="https://t.me/VorisxonS">Телеграм</a>
               <a href="https://t.me/VorisxonS">Связаться</a>
-              <a href="https://t.me/VorisxonS">Обратная связь</a>
-              <a href="phone">+998 90 550 78 07</a>
-              <a href="phone">+998 93 058 60 53</a>
             </div>
             <div className="footer-column">
               <h4>Правовая информация</h4>
@@ -1001,20 +1184,14 @@ function Footer() {
           </div>
         </div>
         
-        {/* <div className="footer-bottom">
-          <p>© 2026 QIBLA. Все права защищены.</p>
-          <div className="footer-social">
-            <a href="https://t.me/VorisxonS">Tg</a>
-            <a href="https://www.instagram.com/vorisxon_s/" aria-label="Instagram">in</a>
-            <a href="vorisxon.me@gmail.com" aria-label="Email">vorisxon.me@gmail.com</a>
-          </div>
-        </div> */}
+        <div className="footer-bottom">
+          <p>© 2024 QIBLA. Все права защищены.</p>
+        </div>
       </div>
     </footer>
   );
 }
 
-// Главный компонент
 function App() {
   return (
     <div className="app">
