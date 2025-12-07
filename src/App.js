@@ -94,42 +94,97 @@ const Icons = {
 };
 
 // ==========================================
-// КОНФИГУРАЦИЯ ПО УМОЛЧАНИЮ (Наманган)
+// БАЗА ГОРОДОВ УЗБЕКИСТАНА
+// ==========================================
+const UZBEKISTAN_CITIES = [
+  { name: 'Ташкент', lat: 41.2995, lon: 69.2401, radius: 20 },
+  { name: 'Самарканд', lat: 39.6542, lon: 66.9597, radius: 15 },
+  { name: 'Наманган', lat: 40.9983, lon: 71.6726, radius: 12 },
+  { name: 'Андижан', lat: 40.7821, lon: 72.3442, radius: 12 },
+  { name: 'Фергана', lat: 40.3842, lon: 71.7890, radius: 12 },
+  { name: 'Коканд', lat: 40.5286, lon: 70.9425, radius: 10 },
+  { name: 'Бухара', lat: 39.7747, lon: 64.4286, radius: 15 },
+  { name: 'Карши', lat: 38.8600, lon: 65.8000, radius: 12 },
+  { name: 'Нукус', lat: 42.4619, lon: 59.6166, radius: 15 },
+  { name: 'Ургенч', lat: 41.5500, lon: 60.6333, radius: 10 },
+  { name: 'Хива', lat: 41.3786, lon: 60.3639, radius: 8 },
+  { name: 'Термез', lat: 37.2242, lon: 67.2783, radius: 12 },
+  { name: 'Навои', lat: 40.0844, lon: 65.3792, radius: 12 },
+  { name: 'Джизак', lat: 40.1158, lon: 67.8422, radius: 10 },
+  { name: 'Гулистан', lat: 40.4897, lon: 68.7842, radius: 10 },
+  { name: 'Ангрен', lat: 41.0167, lon: 70.1436, radius: 8 },
+  { name: 'Алмалык', lat: 40.7833, lon: 69.6000, radius: 8 },
+  { name: 'Чирчик', lat: 41.4689, lon: 69.5825, radius: 8 },
+  { name: 'Маргилан', lat: 40.4700, lon: 71.7147, radius: 8 },
+  { name: 'Шахрисабз', lat: 39.0517, lon: 66.8300, radius: 8 },
+  { name: 'Денау', lat: 38.2772, lon: 67.8936, radius: 8 },
+  { name: 'Ургут', lat: 39.4000, lon: 67.2500, radius: 6 },
+  { name: 'Каттакурган', lat: 39.9000, lon: 66.2667, radius: 6 },
+  { name: 'Риштан', lat: 40.3500, lon: 71.2833, radius: 5 },
+  { name: 'Чуст', lat: 41.0000, lon: 71.2333, radius: 5 },
+  { name: 'Пап', lat: 40.8833, lon: 71.1333, radius: 5 },
+  { name: 'Учкурган', lat: 41.1167, lon: 71.0333, radius: 5 },
+  { name: 'Касансай', lat: 41.2000, lon: 71.5667, radius: 5 },
+  { name: 'Янгикурган', lat: 40.7500, lon: 71.7167, radius: 5 },
+  { name: 'Асака', lat: 40.6333, lon: 72.2333, radius: 5 },
+  { name: 'Ханабад', lat: 40.8000, lon: 72.0667, radius: 5 },
+  { name: 'Шахрихан', lat: 40.7167, lon: 72.0500, radius: 5 },
+  { name: 'Кува', lat: 40.5333, lon: 72.0833, radius: 5 },
+];
+
+// Функция определения ближайшего города
+function findNearestCity(lat, lon) {
+  let nearestCity = null;
+  let minDistance = Infinity;
+
+  for (const city of UZBEKISTAN_CITIES) {
+    // Формула гаверсинуса для расчёта расстояния
+    const R = 6371; // Радиус Земли в км
+    const dLat = (city.lat - lat) * Math.PI / 180;
+    const dLon = (city.lon - lon) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat * Math.PI / 180) * Math.cos(city.lat * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearestCity = { ...city, distance };
+    }
+  }
+
+  return nearestCity;
+}
+
+// ==========================================
+// КОНФИГУРАЦИЯ ПО УМОЛЧАНИЮ
 // ==========================================
 const DEFAULT_LOCATION = {
-  latitude: 40.9983,
-  longitude: 71.6726,
-  city: 'Наманган',
+  latitude: 40.5286,
+  longitude: 70.9425,
+  city: 'Коканд',
   country: 'Узбекистан',
-  timezone: 5 // UTC+5
+  timezone: 5
 };
 
 // ==========================================
-// ФУНКЦИИ ДЛЯ РАСЧЁТА ВРЕМЕНИ
+// ФУНКЦИИ ДЛЯ РАСЧЁТА ВРЕМЕНИ НАМАЗА
 // ==========================================
 
-// Получение смещения часового пояса по координатам (приблизительно)
-function getTimezoneOffset(longitude) {
-  // Приблизительный расчёт часового пояса по долготе
-  // Каждые 15 градусов = 1 час
-  return Math.round(longitude / 15);
-}
-
-// Функция для расчёта времени намаза
 function calculatePrayerTimes(date, latitude, longitude, timezoneOffset) {
   const DEG_TO_RAD = Math.PI / 180;
   const RAD_TO_DEG = 180 / Math.PI;
   
-  // Параметры расчёта (метод Muslim World League)
   const fajrAngle = 18;
   const ishaAngle = 17;
-  const asrFactor = 1; // Стандартный (Шафии)
+  const asrFactor = 1;
   
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
   const day = date.getDate();
   
-  // Юлианская дата
   const A = Math.floor((14 - month) / 12);
   const Y = year + 4800 - A;
   const M = month + 12 * A - 3;
@@ -180,7 +235,6 @@ function calculatePrayerTimes(date, latitude, longitude, timezoneOffset) {
   };
 }
 
-// Функция для получения хиджри даты
 function getHijriDate(gregorianDate) {
   const day = gregorianDate.getDate();
   const month = gregorianDate.getMonth();
@@ -204,31 +258,57 @@ function getHijriDate(gregorianDate) {
   return `${hijriDay} ${hijriMonths[hijriMonth - 1] || 'Неизвестно'}`;
 }
 
-// Функция для получения названия города по координатам
+// Улучшенная функция получения названия города
 async function getCityName(latitude, longitude) {
+  // Сначала проверяем по локальной базе городов Узбекистана
+  const nearestUzCity = findNearestCity(latitude, longitude);
+  
+  // Если город найден и он близко (в пределах радиуса города)
+  if (nearestUzCity && nearestUzCity.distance < nearestUzCity.radius) {
+    console.log(`Найден город по локальной базе: ${nearestUzCity.name} (${nearestUzCity.distance.toFixed(1)} км)`);
+    return { 
+      city: nearestUzCity.name, 
+      country: 'Узбекистан',
+      source: 'local'
+    };
+  }
+
+  // Если не нашли в локальной базе, пробуем API
   try {
-    // Используем бесплатный API для reverse geocoding
+    // Пробуем BigDataCloud API (лучше определяет мелкие города)
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=ru`
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=ru`
     );
     const data = await response.json();
     
-    const city = data.address?.city || 
-                 data.address?.town || 
-                 data.address?.village || 
-                 data.address?.state ||
+    const city = data.city || 
+                 data.locality || 
+                 data.principalSubdivision ||
+                 nearestUzCity?.name ||
                  'Неизвестно';
-    const country = data.address?.country || '';
+    const country = data.countryName || '';
     
-    return { city, country };
+    console.log('API результат:', { city, country, raw: data });
+    
+    return { city, country, source: 'api' };
   } catch (error) {
-    console.error('Ошибка получения названия города:', error);
-    return { city: 'Неизвестно', country: '' };
+    console.error('Ошибка API, используем локальную базу:', error);
+    
+    // Fallback на ближайший город из базы
+    if (nearestUzCity) {
+      return { 
+        city: nearestUzCity.name, 
+        country: 'Узбекистан',
+        source: 'local-fallback'
+      };
+    }
+    
+    return { city: 'Неизвестно', country: '', source: 'error' };
   }
 }
 
 // ==========================================
-// ОСНОВНОЙ ХУК ДЛЯ ВРЕМЕНИ НАМАЗА С ГЕОЛОКАЦИЕЙ
+// ОСНОВНОЙ ХУК ДЛЯ ВРЕМЕНИ НАМАЗА
 // ==========================================
 function usePrayerTimes() {
   const [location, setLocation] = useState({
@@ -237,7 +317,8 @@ function usePrayerTimes() {
     city: DEFAULT_LOCATION.city,
     country: DEFAULT_LOCATION.country,
     timezone: DEFAULT_LOCATION.timezone,
-    isDefault: true
+    isDefault: true,
+    accuracy: null
   });
   const [prayerTimes, setPrayerTimes] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -245,7 +326,7 @@ function usePrayerTimes() {
   const [timeRemaining, setTimeRemaining] = useState('');
   const [hijriDate, setHijriDate] = useState('');
   const [loading, setLoading] = useState(true);
-  const [locationStatus, setLocationStatus] = useState('detecting'); // 'detecting', 'success', 'denied', 'error'
+  const [locationStatus, setLocationStatus] = useState('detecting');
 
   // Обновление текущего времени каждую секунду
   useEffect(() => {
@@ -269,22 +350,21 @@ function usePrayerTimes() {
 
       navigator.geolocation.getCurrentPosition(
         async (position) => {
-          const { latitude, longitude } = position.coords;
-          console.log('Геолокация получена:', latitude, longitude);
+          const { latitude, longitude, accuracy } = position.coords;
+          console.log('Геолокация получена:', { latitude, longitude, accuracy });
           
           // Получаем название города
-          const { city, country } = await getCityName(latitude, longitude);
-          
-          // Определяем часовой пояс
-          const timezone = getTimezoneOffset(longitude);
+          const { city, country, source } = await getCityName(latitude, longitude);
+          console.log('Определён город:', { city, country, source });
           
           setLocation({
             latitude,
             longitude,
             city,
             country,
-            timezone,
-            isDefault: false
+            timezone: 5, // Узбекистан UTC+5
+            isDefault: false,
+            accuracy: Math.round(accuracy)
           });
           
           setLocationStatus('success');
@@ -299,7 +379,6 @@ function usePrayerTimes() {
             setLocationStatus('error');
           }
           
-          // Используем Наманган по умолчанию
           setLocation({
             ...DEFAULT_LOCATION,
             isDefault: true
@@ -307,9 +386,9 @@ function usePrayerTimes() {
           setLoading(false);
         },
         {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 300000 // 5 минут кэш
+          enableHighAccuracy: true, // Высокая точность
+          timeout: 15000,
+          maximumAge: 60000 // Кэш 1 минута
         }
       );
     };
@@ -465,19 +544,13 @@ function Hero() {
     });
   };
 
-  // Статус геолокации
-  const getLocationStatusText = () => {
+  const getLocationStatusIcon = () => {
     switch (locationStatus) {
-      case 'detecting':
-        return '🔍 Определение...';
-      case 'success':
-        return `📍 ${location.city}`;
-      case 'denied':
-        return `📍 ${location.city} (по умолчанию)`;
-      case 'error':
-        return `📍 ${location.city} (по умолчанию)`;
-      default:
-        return `📍 ${location.city}`;
+      case 'detecting': return '🔍';
+      case 'success': return '📍';
+      case 'denied': return '⚠️';
+      case 'error': return '❌';
+      default: return '📍';
     }
   };
 
@@ -554,14 +627,16 @@ function Hero() {
               </div>
               <div className="phone-app">
                 <div className="app-header">
-                  <span className="app-location">{getLocationStatusText()}</span>
+                  <span className="app-location">
+                    {getLocationStatusIcon()} {location.city}
+                    {location.accuracy && <small> (±{location.accuracy}м)</small>}
+                  </span>
                   <span className="app-date">{hijriDate || 'Загрузка...'}</span>
                 </div>
                 
-                {/* Индикатор статуса геолокации */}
                 {location.isDefault && (
                   <div className="location-notice">
-                    ℹ️ Используется Наманган. Разрешите геолокацию для точного времени.
+                    ℹ️ Разрешите геолокацию для точного определения
                   </div>
                 )}
                 
@@ -764,13 +839,6 @@ function PrayerSection() {
     });
   };
 
-  const getLocationDisplay = () => {
-    if (location.country) {
-      return `${location.city}, ${location.country}`;
-    }
-    return location.city;
-  };
-
   return (
     <section id="prayer" className="prayer-section">
       <div className="container">
@@ -780,12 +848,14 @@ function PrayerSection() {
               <div className="prayer-screen">
                 <div className="prayer-header">
                   <Icons.Location />
-                  <span>{getLocationDisplay()}</span>
-                  {location.isDefault && <span className="default-badge">по умолчанию</span>}
+                  <span>
+                    {location.city}, {location.country}
+                    {location.isDefault && <span className="default-badge">авто</span>}
+                  </span>
                 </div>
                 
                 <div className="current-time-display">
-                  <span className="current-time-label">Текущее время (UTC+{location.timezone})</span>
+                  <span className="current-time-label">Текущее время (UTC+5)</span>
                   <span className="current-time-value">{formatCurrentTime()}</span>
                 </div>
 
@@ -842,7 +912,7 @@ function PrayerSection() {
             <h2 className="section-title">Никогда не пропустите молитву</h2>
             <p className="section-description">
               Точное время всех пяти молитв с учётом вашего местоположения. 
-              {location.isDefault && ' Разрешите доступ к геолокации для более точного времени.'}
+              Настраиваемые уведомления помогут вам соблюдать расписание.
             </p>
             
             <div className="live-prayer-info">
@@ -858,10 +928,10 @@ function PrayerSection() {
               )}
             </div>
 
-            {/* Информация о координатах */}
             <div className="coordinates-info">
-              <p>📍 Координаты: {location.latitude.toFixed(4)}°, {location.longitude.toFixed(4)}°</p>
-              <p>🕐 Часовой пояс: UTC+{location.timezone}</p>
+              <p>📍 <strong>{location.city}</strong>, {location.country}</p>
+              <p>🌐 Координаты: {location.latitude.toFixed(4)}°, {location.longitude.toFixed(4)}°</p>
+              {location.accuracy && <p>🎯 Точность: ±{location.accuracy} м</p>}
             </div>
             
             <div className="prayer-features">
